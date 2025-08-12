@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Portrait Lyrics Video Maker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime&family=Noto+Serif+Display:ital,wdth,wght@0,75,100..900;1,75,100..900&display=swap');
+    </style>
+    <style>
+        :root {
+            --bg-color: #f8f7f6;
+            --prime-color: #111;
+            --muted-color: #ccc;
+        }
+        html {
+            font-size: 1vw;
+        }
+        body {
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+        p {
+            margin-block-start: 0rem;
+            margin-block-end: 0rem;
+        }
+        .font-lyrics {
+            font-family: "Noto Serif Display", serif;
+            font-optical-sizing: auto;
+            font-weight: 300;
+            font-style: italic;
+            font-variation-settings: "wdth" 75;
+        }
+        .font-title {
+            font-family: "Noto Serif Display", serif;
+            font-optical-sizing: auto;
+            font-weight: 600;
+            font-style: normal;
+            font-variation-settings: "wdth" 75;
+        }
+        .font-time {
+            font-family: "Courier Prime", monospace;
+            font-weight: 400;
+            font-style: normal;
+        }
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--prime-color);
+            font-size: 1vw;
+        }
+        .center-container {
+            width: 100%;
+            padding: 2vw;
+            display:flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: left;
+        }
+        .song-title {
+            font-size: 10rem;
+            line-height: 10rem;
+            margin: 2rem 0;
+        }
+        .lyric-line {
+            font-size: 5rem;
+            line-height: 5rem;
+            white-space: nowrap;
+            margin: 2rem 0;
+        }
+        .progress-bar-container {
+            display: flex;
+            flex-direction: row;
+            justify-self: space-between;
+            align-items: center;
+        }
+        .progress-bar-time {
+            font-size: 3rem;
+            line-height: 3rem;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            margin: 0 2rem;
+            /* margin-top: 0.5rem; */
+            background: linear-gradient(90deg, var(--prime-color), var(--prime-color) 50%, var(--muted-color) 0);
+        }
+        .progress-bar::before {
+            content: "";
+            display: block;
+            height: 1rem;
+            width: 0.2rem;
+            position: relative;
+            top: -0.5rem;
+            left: calc(50% - 0.1rem);
+            background-color: var(--prime-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="center-container">
+            <p class="song-title font-title">Amie</p>
+            <div class="progress-bar-container">
+                <p class="progress-bar-time font-time">00:00</p>
+                <div class="progress-bar"></div>
+                <p class="progress-bar-time font-time">05:30</p>
+            </div>
+            <div class="lyrics-container font-lyrics">
+                <p class="lyric-line">Nothing unusual, nothing strange</p>
+                <p class="lyric-line">Close to nothing at all</p>
+                <p class="lyric-line">The same old scenario, the same old rain</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { parse, parseEnhanced, LineType } from './clrc.js';
+
+         const simpleLrc = `
+[ar: Artist Name]
+[ti: Song Title]
+[00:10.50]This is the first line.
+[00:15.00]This line appears at two different times.
+[00:18.25]This is the third line.
+An invalid line without a timestamp.
+`;
+
+        const simpleParsedResult = parse(simpleLrc);
+        console.log(simpleParsedResult);
+
+        // 这个脚本将由 Playwright 调用来更新每一帧的内容
+        function updateFrame(time, progress) {
+            
+        }
+    </script>
+</body>
+</html>
