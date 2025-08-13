@@ -5,7 +5,7 @@ import os
 # --- 配置 ---
 PORT = 9000
 # 你想要作为服务器根目录的文件夹名称
-DIRECTORY = "web" 
+DIRECTORY = "html" 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     """

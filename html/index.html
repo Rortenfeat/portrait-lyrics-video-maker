@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Portrait Lyrics Video Maker</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime&family=Noto+Serif+Display:ital,wdth,wght@0,75,100..900;1,75,100..900&display=swap');
+    </style>
+    <style>
+        :root {
+            --bg-color: #f8f7f6;
+            --prime-color: #111;
+            --muted-color: #777;
+            --bar-bg-color: #ccc;
+
+            --lyric-size: 5rem;
+            --lyric-line-height: 5rem;
+            --lyric-line-gap: 2rem;
+        }
+
+        html {
+            font-size: 1vw;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color);
+            overflow: hidden;
+        }
+
+        p {
+            margin-block-start: 0rem;
+            margin-block-end: 0rem;
+        }
+
+        .font-lyrics {
+            font-family: "Noto Serif Display", serif;
+            font-optical-sizing: auto;
+            font-weight: 300;
+            font-style: italic;
+            font-variation-settings: "wdth" 75;
+        }
+
+        .font-title {
+            font-family: "Noto Serif Display", serif;
+            font-optical-sizing: auto;
+            font-weight: 600;
+            font-style: normal;
+            font-variation-settings: "wdth" 75;
+        }
+
+        .font-time {
+            font-family: "Courier Prime", monospace;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--prime-color);
+            font-size: 1vw;
+        }
+
+        .center-container {
+            width: 100%;
+            padding: 2vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+
+            box-sizing: border-box;
+            min-width: 0;
+        }
+
+        .song-title {
+            font-size: 10rem;
+            line-height: 10rem;
+            margin: 2rem 0;
+        }
+
+        .lyrics-container {
+            width: 100%;
+            height: calc(var(--lyric-line-height) * 3 + var(--lyric-line-gap) * 3);
+            display: flex;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            justify-content: flex-start;
+            align-items: flex-start;
+
+            overflow: hidden;
+            /* min-width: 0; */
+            /* gap: var(--lyric-line-gap); */
+        }
+
+        .lyric-line {
+            font-size: var(--lyric-size);
+            line-height: var(--lyric-line-height);
+            /* height: calc(var(--lyric-line-height) + var(--lyric-line-gap)); */
+            /* white-space: nowrap; */
+            /* margin: 0; */
+            /* margin-bottom: var(--lyric-line-gap); */
+            box-sizing: content-box;
+            color: var(--muted-color);
+
+            flex-shrink: 0;
+            width: 100%;
+            overflow: visible;
+        }
+
+        .lyric-line.active {
+            color: var(--prime-color);
+        }
+
+        .lyric-scroll-wrapper {
+            padding-bottom: var(--lyric-line-gap);
+            overflow-x: auto;
+            overflow-y: visible;
+
+            scrollbar-width: none;
+            /* Firefox */
+            -ms-overflow-style: none;
+        }
+
+        .lyric-scroll-wrapper::-webkit-scrollbar {
+            display: none;
+            /* Chrome, Safari, and Opera */
+        }
+
+        .lyric-line-text {
+            white-space: nowrap;
+            display: inline;
+        }
+
+        .progress-bar-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            width: 100%;
+        }
+
+        .progress-bar-time {
+            font-size: 3rem;
+            line-height: 3rem;
+            white-space: nowrap;
+        }
+
+        .progress-bar {
+            --progress: 0%;
+            /* width: 100%; */
+            height: 0.5rem;
+            margin: 0 2rem;
+            /* margin-top: 0.5rem; */
+            background: linear-gradient(90deg, var(--prime-color), var(--prime-color) var(--progress), var(--bar-bg-color) 0);
+
+            flex-grow: 1;
+        }
+
+        .progress-bar::before {
+            content: "";
+            display: block;
+            height: 1rem;
+            width: 0.2rem;
+            position: relative;
+            top: -0.5rem;
+            left: calc(var(--progress) - 0.1rem);
+            background-color: var(--prime-color);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="center-container">
+            <p class="song-title font-title">Title</p>
+            <div class="progress-bar-container">
+                <p class="progress-bar-time progress-bar-time-left font-time">00:00</p>
+                <div class="progress-bar"></div>
+                <p class="progress-bar-time progress-bar-time-right font-time">05:30</p>
+            </div>
+            <div class="lyrics-container font-lyrics">
+                <div class="lyric-line">
+                    <div class="lyric-scroll-wrapper">
+                        <span class="lyric-line-text">Test Line 1</span>
+                    </div>
+                </div>
+                <div class="lyric-line">
+                    <div class="lyric-scroll-wrapper">
+                        <span class="lyric-line-text">Test Line 2 La lalalala</span>
+                    </div>
+                </div>
+                <div class="lyric-line">
+                    <div class="lyric-scroll-wrapper">
+                        <span class="lyric-line-text">Test Line 3 this could be a really long line that must
+                            overflow</span>
+                    </div>
+                </div>
+                <div class="lyric-line">
+                    <div class="lyric-scroll-wrapper">
+                        <span class="lyric-line-text">Test Line 4 you cannot see me</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { parse, parseEnhanced, LineType } from './clrc.js';
+
+        /**
+         * Get pixels of 1 rem
+         * @returns {number}
+         */
+        function getRemValue() {
+            const root = document.documentElement;
+            const computedStyle = window.getComputedStyle(root);
+            return parseFloat(computedStyle.fontSize);
+        }
+        const rem = getRemValue();
+
+        function ease(t, start, end) {
+            if (end - start <= 0) return start;
+            if (t <= start) return start;
+            if (t >= end) return end;
+            const x = (t - start) / (end - start);
+            return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+        }
+
+
+
+        class Player {
+            LINE_TRANSITION_DURATION = 1000; // ms
+
+            constructor(song = undefined) {
+                this.hasLyrics = false;
+                if (song) {
+                    this.Song = song;
+                }
+                this.titleDom = document.querySelector('.song-title');
+                this.lyricsContainerDom = document.querySelector('.lyrics-container');
+                this.progressBarDom = document.querySelector('.progress-bar');
+                this.progressBarTimeLeftDom = document.querySelector('.progress-bar-time-left');
+                this.progressBarTimeRightDom = document.querySelector('.progress-bar-time-right');
+            }
+            set Time(t) {
+                this.time = t;
+
+                if (this.Song) {
+                    this.progressBarTimeLeftDom.textContent = this.formatTime(t);
+                    if (this.Song.duration) {
+                        this.progressBarTimeRightDom.textContent = this.formatTime(this.Song.duration - t);
+                        this.progressBarDom.style.setProperty('--progress', `${Math.min(1, (t / this.Song.duration)) * 100}%`);
+                    }
+
+                    if (this.hasLyrics) {
+                        const parsed = this.Song.lyrics.parsed;
+                        const t_ms = t * 1000;
+                        // Lyrics line transition
+                        for (let i = 0; i < parsed.length; i++) {
+                            if (t_ms >= parsed[i].startMillisecond - this.LINE_TRANSITION_DURATION && t_ms < parsed[i].startMillisecond) {
+                                let line_interp = 0;
+                                if (i > 0 && this.LINE_TRANSITION_DURATION > parsed[i].startMillisecond - parsed[i - 1].startMillisecond) {
+                                    line_interp = ease(t_ms, parsed[i - 1].startMillisecond, parsed[i].startMillisecond);
+                                } else {
+                                    line_interp = ease(t_ms, parsed[i].startMillisecond - this.LINE_TRANSITION_DURATION, parsed[i].startMillisecond);
+                                }
+                                this.scrollToShowLine(i - 1 + line_interp);
+                                break;
+                            } else if (i === parsed.length - 1 || t_ms < parsed[i + 1].startMillisecond - this.LINE_TRANSITION_DURATION) {
+                                this.scrollToShowLine(i);
+                                this.activateLine(i);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            get Time() {
+                return this.time;
+            }
+            set Title(title) {
+                this.title = title;
+                this.titleDom.textContent = title;
+            }
+            get Title() {
+                return this.title;
+            }
+            set Lyrics(lyrics) {
+                this.lyrics = lyrics;
+                this.hasLyrics = true;
+
+                this.lyricsContainerDom.innerHTML = '';
+                this.lyrics.plain.forEach((line, index) => {
+                    const lyricLine = document.createElement('div');
+                    lyricLine.classList.add('lyric-line');
+                    const scrollWrapper = document.createElement('div');
+                    scrollWrapper.classList.add('lyric-scroll-wrapper');
+                    if (this.lyrics.mode === 'enhanced') {
+                        this.lyrics.parsed[index].words.forEach(word => {
+                            const lyricLineText = document.createElement('span');
+                            lyricLineText.classList.add('lyric-line-text');
+                            lyricLineText.textContent = word.content;
+                            scrollWrapper.appendChild(lyricLineText);
+                        });
+                    } else {
+                        const lyricLineText = document.createElement('span');
+                        lyricLineText.classList.add('lyric-line-text');
+                        lyricLineText.textContent = line;
+                        scrollWrapper.appendChild(lyricLineText);
+                    }
+                    lyricLine.appendChild(scrollWrapper);
+                    this.lyricsContainerDom.appendChild(lyricLine);
+                });
+            }
+            get Lyrics() {
+                return this.lyrics;
+            }
+            set Song(song) {
+                this.song = song;
+                this.initSong();
+            }
+            get Song() {
+                return this.song;
+            }
+            initSong() {
+                const song = this.song;
+                if (!song) return;
+
+                this.Title = song.title;
+                if (song.lyrics) this.Lyrics = song.lyrics;
+                this.Time = 0;
+            }
+            formatTime(t) {
+                if (t < 0) return '--:--';
+                const minutes = Math.floor(t / 60);
+                const seconds = Math.floor(t % 60);
+                return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            /**
+             * Scroll the first line of the lyrics container to the specified line
+             * @param {number} line
+             * @returns {void}
+             */
+            scrollLyricsContainer(line) {
+                const lyricsContainer = this.lyricsContainerDom;
+                const firstLyricLine = lyricsContainer.querySelector('.lyric-line');
+                if (!firstLyricLine) return;
+
+                const rect = firstLyricLine.getBoundingClientRect();
+                const totalHeight = rect.height;
+
+                lyricsContainer.scrollTop = line * totalHeight;
+                return;
+            }
+
+            /**
+             * Scroll the lyrics container to show the specified line
+             * @param {number} line
+             * @returns {void}
+             */
+            scrollToShowLine(line) {
+                if (!this.hasLyrics) return;
+                const totalLines = this.lyrics.parsed.length;
+                if (line < 0 || line >= totalLines) return;
+
+                if (line < 1) this.scrollLyricsContainer(0);
+                else if (line > totalLines - 2) this.scrollLyricsContainer(totalLines - 3);
+                else this.scrollLyricsContainer(line - 1);
+                return;
+            }
+            /**
+             * Start automatically updating time by time
+             * @param {number} rate
+             * @returns {void}
+             */
+            startTimer(rate = 60) {
+                if (this.timer) this.stopTimer();
+                if (!this.Time) this.Time = 0;
+                this.timer_start = performance.now() - (this.time * 1000);
+                this.timer = setInterval(() => {
+                    if (this.Song && this.Song.duration && this.Time >= this.Song.duration) this.stopTimer();
+                    this.Time = (performance.now() - this.timer_start) / 1000;
+                }, 1000 / rate);
+            }
+            stopTimer() {
+                clearInterval(this.timer);
+            }
+            activateLine(line) {
+                if (!this.hasLyrics) return;
+                if (this.activeLine && this.activeLine === line) return;
+
+                const children = this.lyricsContainerDom.children;
+                for (let i = 0; i < children.length; i++) {
+                    const classList = children[i].classList;
+                    if (i < line) {
+                        if (classList.contains('active')) classList.remove('active');
+                        if (!classList.contains('past')) classList.add('past');
+                    } else if (i === line) {
+                        if (!classList.contains('active')) classList.add('active');
+                        if (classList.contains('past')) classList.remove('past');
+                    } else {
+                        if (classList.contains('active')) classList.remove('active');
+                        if (classList.contains('past')) classList.remove('past');
+                    }
+                }
+                this.activeLine = line;
+                return;
+            }
+        }
+
+        class Song {
+            constructor(title, author, duration, lyrics_path = undefined, callback = undefined) {
+                this.title = title;
+                this.author = author;
+                this.lyrics_path = lyrics_path;
+                this.duration = duration;
+                this.callback = callback;
+                this.getLyrics();
+            }
+            getLyrics = async () => {
+                if (!this.lyrics_path) return;
+                const response = await fetch(this.lyrics_path);
+                let raw = await response.text();
+                raw = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n'); // 处理换行符
+
+                const enhancedRegex = new RegExp(/<\d*:\d*\.\d*>/)
+                const mode = enhancedRegex.test(raw) ? 'enhanced' : 'normal';
+                this.lyrics = new Lyrics(raw, mode);
+
+                if (this.callback && typeof this.callback === 'function') this.callback();
+                return;
+            }
+        }
+
+        class Lyrics {
+            /**
+             * Handling lyrics parsing
+             * @param {string} raw
+             * @param {'enhanced'|'normal'} mode
+             */
+            constructor(raw, mode = 'normal') {
+                this.raw = raw;
+                this.mode = mode;
+                this.parseRaw();
+            }
+            parseRaw() {
+                if (this.mode === 'enhanced') {
+                    this.parsed = parseEnhanced(this.raw);
+                    this.parsed = this.parsed.filter(line => line.type === LineType.ENHANCED_LYRIC);
+                    this.plain = [];
+                    this.parsed.forEach(line => {
+                        let plain_line = '';
+                        line.words.forEach(word => {
+                            plain_line += word.content;
+                        })
+                        this.plain.push(plain_line);
+                    })
+                }
+                else {
+                    this.parsed = parse(this.raw);
+                    this.parsed = this.parsed.filter(line => line.type === LineType.LYRIC);
+                    this.plain = [];
+                    this.parsed.forEach(line => {
+                        this.plain.push(line.content);
+                    })
+                }
+            }
+        }
+
+        const player = new Player();
+
+        // 这个脚本将由 Playwright 调用来更新每一帧的内容
+        function updateFrame(time, progress) {
+
+        }
+
+        window.lv = {
+            updateFrame, player, Player, Song, Lyrics
+        }
+    </script>
+</body>
+
+</html>
