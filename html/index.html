@@ -12,6 +12,7 @@
             --bg-color: #f8f7f6;
             --prime-color: #111;
             --muted-color: #777;
+            --emphasis-color: rgb(255, 39, 93);
             --bar-bg-color: #ccc;
 
             --lyric-size: 5rem;
@@ -121,6 +122,7 @@
         .lyric-scroll-wrapper {
             padding-bottom: var(--lyric-line-gap);
             overflow-x: auto;
+            /* Allow user to scroll */
             overflow-y: visible;
 
             scrollbar-width: none;
@@ -137,6 +139,15 @@
             white-space: nowrap;
             display: inline;
         }
+
+        .lyric-line.active .lyric-line-text.active {
+            color: var(--emphasis-color);
+        }
+
+        .lyric-line.active .lyric-line-text.past {
+            color: var(--emphasis-color);
+        }
+
 
         .progress-bar-container {
             display: flex;
@@ -229,8 +240,10 @@
             if (t <= start) return start;
             if (t >= end) return end;
             const x = (t - start) / (end - start);
-            return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+            return x < 0.5 ? 4 * x ** 3 : 1 - Math.pow(-2 * x + 2, 3) / 2;
         }
+
+        const isDom = (v) => typeof v === 'object' && v instanceof HTMLElement;
 
 
 
@@ -259,7 +272,7 @@
                     }
 
                     if (this.hasLyrics) {
-                        const parsed = this.Song.lyrics.parsed;
+                        const parsed = this.Lyrics.parsed;
                         const t_ms = t * 1000;
                         // Lyrics line transition
                         for (let i = 0; i < parsed.length; i++) {
@@ -276,6 +289,21 @@
                                 this.scrollToShowLine(i);
                                 this.activateLine(i);
                                 break;
+                            }
+                        }
+                        if (this.hasActiveLine && this.Lyrics.mode === 'enhanced') {
+                            const i = this.activeLine;
+                            for (let j = 0; j < parsed[i].words.length; j++) {
+                                if (j === 0 && t_ms < parsed[i].words[j].startMillisecond) {
+                                    break;
+                                } else if (j === parsed[i].words.length - 1) {
+                                    this.scrollToShowWord(j);
+                                    this.activateWord(j);
+                                } else if (t_ms >= parsed[i].words[j].startMillisecond && t_ms < parsed[i].words[j + 1].startMillisecond) {
+                                    this.scrollToShowWord(j);
+                                    this.activateWord(j);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -348,14 +376,17 @@
              * @returns {void}
              */
             scrollLyricsContainer(line) {
+                if (this.currentLine === line) return;
                 const lyricsContainer = this.lyricsContainerDom;
-                const firstLyricLine = lyricsContainer.querySelector('.lyric-line');
-                if (!firstLyricLine) return;
+                if (!this.lineHeight) {
+                    const firstLyricLine = lyricsContainer.querySelector('.lyric-line');
+                    if (!firstLyricLine) return;
+                    const rect = firstLyricLine.getBoundingClientRect();
+                    this.lineHeight = rect.height;
+                }
 
-                const rect = firstLyricLine.getBoundingClientRect();
-                const totalHeight = rect.height;
-
-                lyricsContainer.scrollTop = line * totalHeight;
+                lyricsContainer.scrollTop = this.lineHeight * line;
+                this.currentLine = line;
                 return;
             }
 
@@ -375,6 +406,41 @@
                 return;
             }
             /**
+             * Scroll the horizontal scroll wrapper to show the word of active line
+             * @param {number|HTMLElement} word
+             * 
+             */
+            scrollToShowWord(word) {
+                let scrollWrapper;
+                let targetWord;
+                if (isDom(word)) {
+                    scrollWrapper = word.closest('.lyric-scroll-wrapper');
+                    targetWord = word;
+                } else {
+                    if (!this.hasActiveLine) return;
+                    scrollWrapper = this.lyricsContainerDom.children[this.activeLine].querySelector('.lyric-scroll-wrapper');
+                    targetWord = scrollWrapper.querySelector(`span:nth-child(${word + 1})`);
+                }
+
+                if (!scrollWrapper || !targetWord) return;
+                if (this.currentWord === targetWord) return;
+                this.currentWord = targetWord;
+
+                console.log('hey');
+                const maxScrollLeft = scrollWrapper.scrollWidth - scrollWrapper.clientWidth;
+                if (maxScrollLeft == 0) return;
+
+                const wordCenterAbsolute = targetWord.offsetLeft + targetWord.offsetWidth / 2;
+                const viewportHalfWidth = scrollWrapper.clientWidth / 2;
+                let targetScrollLeft = wordCenterAbsolute - viewportHalfWidth;
+                if (targetScrollLeft < 0) targetScrollLeft = 0;
+                if (targetScrollLeft > maxScrollLeft) targetScrollLeft = maxScrollLeft;
+
+                scrollWrapper.scrollLeft = targetScrollLeft;
+                return;
+
+            }
+            /**
              * Start automatically updating time by time
              * @param {number} rate
              * @returns {void}
@@ -391,9 +457,14 @@
             stopTimer() {
                 clearInterval(this.timer);
             }
+            /**
+             * Class style handling for line activation
+             * @param {number} line
+             * @returns {void}
+             */
             activateLine(line) {
                 if (!this.hasLyrics) return;
-                if (this.activeLine && this.activeLine === line) return;
+                if (this.hasActiveLine && this.activeLine === line) return;
 
                 const children = this.lyricsContainerDom.children;
                 for (let i = 0; i < children.length; i++) {
@@ -409,15 +480,43 @@
                         if (classList.contains('past')) classList.remove('past');
                     }
                 }
+                this.hasActiveLine = true;
                 this.activeLine = line;
+                return;
+            }
+            /**
+             * Class style handling for word activation
+             * @param {number} word
+             * @returns {void}
+             */
+            activateWord(word) {
+                if (!this.hasLyrics || !this.hasActiveLine) return;
+
+                const scrollWrapper = this.lyricsContainerDom.children[this.activeLine].querySelector('.lyric-scroll-wrapper');
+                if (!scrollWrapper) return;
+
+                const words = scrollWrapper.querySelectorAll('span');
+                for (let i = 0; i < words.length; i++) {
+                    const classList = words[i].classList;
+                    if (i < word) {
+                        if (classList.contains('active')) classList.remove('active');
+                        if (!classList.contains('past')) classList.add('past');
+                    } else if (i === word) {
+                        if (!classList.contains('active')) classList.add('active');
+                        if (classList.contains('past')) classList.remove('past');
+                    } else {
+                        if (classList.contains('active')) classList.remove('active');
+                        if (classList.contains('past')) classList.remove('past');
+                    }
+                }
                 return;
             }
         }
 
         class Song {
-            constructor(title, author, duration, lyrics_path = undefined, callback = undefined) {
+            constructor(title, artist, duration, lyrics_path = undefined, callback = undefined) {
                 this.title = title;
-                this.author = author;
+                this.artist = artist;
                 this.lyrics_path = lyrics_path;
                 this.duration = duration;
                 this.callback = callback;
@@ -473,15 +572,34 @@
             }
         }
 
-        const player = new Player();
+        class PlaywrightController {
+            constructor(player) {
+                this.player = player;
+                this.songs = [];
+                this.testMessage = 'Hello, playwright!'
+            }
+            async setup(config_path) {
+                const config = await fetch(config_path).then(response => response.json());
+                this.config = config;
 
-        // 这个脚本将由 Playwright 调用来更新每一帧的内容
-        function updateFrame(time, progress) {
-
+                if (config.mode === 'single') {
+                    const song = new Song(config.title, config.artist, config.duration, config.lyrics_path);
+                    this.songs.push(song);
+                    this.player.Song = song;
+                } else if (config.mode === 'playlist') {
+                }
+            }
+            updateFrame(frame, frame_rate) {
+                const time = frame / frame_rate;
+                this.player.Time = time;
+            }
         }
 
+        const player = new Player();
+        const controller = new PlaywrightController(player);
+
         window.lv = {
-            updateFrame, player, Player, Song, Lyrics
+            controller, player, Player, Song, Lyrics
         }
     </script>
 </body>
