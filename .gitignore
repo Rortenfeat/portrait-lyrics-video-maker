@@ -1,6 +1,9 @@
 html/temp
 input
 .vscode
+test
+*.mp4
+output*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
