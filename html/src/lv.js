@@ -36,6 +36,8 @@ class Player {
         this.progressBarDom = document.querySelector('.progress-bar');
         this.progressBarTimeLeftDom = document.querySelector('.progress-bar-time-left');
         this.progressBarTimeRightDom = document.querySelector('.progress-bar-time-right');
+        this.artistDom = document.querySelector('.song-artist');
+        this.albumDom = document.querySelector('.song-album');
     }
     set Time(t) {
         this.time = t;
@@ -95,6 +97,25 @@ class Player {
     get Title() {
         return this.title;
     }
+    set Artist(artist) {
+        this.artist = artist;
+        this.artistDom.textContent = artist;
+    }
+    get Artist() {
+        return this.artist;
+    }
+    set Album(album) {
+        if (!album) {
+            this.album = '';
+            this.albumDom.textContent = '';
+        } else {
+            this.album = album;
+            this.albumDom.textContent = `- ${album}`;
+        }
+    }
+    get Album() {
+        return this.album;
+    }
     set Lyrics(lyrics) {
         this.lyrics = lyrics;
         this.hasLyrics = true;
@@ -137,6 +158,8 @@ class Player {
         if (!song) return;
 
         this.Title = song.title;
+        this.Artist = song.artist;
+        this.Album = song.album;
         if (song.lyrics) this.Lyrics = song.lyrics;
         this.Time = 0;
     }
@@ -290,12 +313,13 @@ class Player {
 }
 
 class Song {
-    constructor(title, artist, duration, raw_lyrics = undefined, callback = undefined) {
+    constructor(title, artist, duration, raw_lyrics = undefined, album = undefined, callback = undefined) {
         this.title = title;
         this.artist = artist;
         this.raw_lyrics = raw_lyrics;
         this.duration = duration;
         this.callback = callback;
+        this.album = album;
         this.parseLyrics();
     }
     parseLyrics = async () => {
@@ -357,7 +381,7 @@ class PlaywrightController {
         this.config = config;
 
         if (config.mode === 'single') {
-            const song = new Song(config.title, config.artist, config.duration, config.lyrics);
+            const song = new Song(config.title, config.artist, config.duration, config.lyrics, config.album);
             this.songs.push(song);
             this.player.Song = song;
         } else if (config.mode === 'playlist') {

@@ -4,7 +4,7 @@ from utils import prewrite_file, get_audio_metadata, is_valid_audio_file, get_lr
 import os
 
 class Config:
-    BASIC_KEYS = ['title', 'artist', 'duration']
+    BASIC_KEYS = ['title', 'artist', 'album', 'duration']
 
     def __init__(self, config_path: str|None = None):
         self.config = {}
@@ -218,6 +218,7 @@ def main():
     parser.add_argument('-i', '--index', type=int, help='Available when "write" is specified. Required when setting a existing song in "playlist" mode. The index can be found by checking "read" command.')
     parser.add_argument('-t', '--title', type=str, help='Available when "write" is specified. Set the title of the song.')
     parser.add_argument('-a', '--artist', type=str, help='Available when "write" is specified. Set the artist of the song.')
+    parser.add_argument('-A', '--album', type=str, help='Available when "write" is specified. Set the album of the song.')
     parser.add_argument('-d', '--duration', type=float, help='Available when "write" is specified. Set the duration of the song in seconds.')
     parser.add_argument('-l', '--lyrics-file', type=str, help='Available when "write" is specified. Set the path to the file containing the lyrics of the song.')
 
@@ -239,6 +240,7 @@ def main():
                 song = {}
                 if args.title: song['title'] = args.title
                 if args.artist: song['artist'] = args.artist
+                if args.album: song['album'] = args.artist
                 if args.duration: song['duration'] = args.duration
                 if args.lyrics_file:
                     lyrics = load_lyrics(args.lyrics_file)
@@ -252,6 +254,7 @@ def main():
                 if args.index or args.index == 0: song['index'] = args.index
                 if args.title: song['title'] = args.title
                 if args.artist: song['artist'] = args.artist
+                if args.album: song['album'] = args.artist
                 if args.duration: song['duration'] = args.duration
                 if args.lyrics_file:
                     lyrics = load_lyrics(args.lyrics_file)

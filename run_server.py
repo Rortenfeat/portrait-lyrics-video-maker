@@ -1,11 +1,27 @@
 import http.server
 import socketserver
 import os
+import socket
 
 # --- 配置 ---
 PORT = 9000
 # 你想要作为服务器根目录的文件夹名称
 DIRECTORY = "html" 
+
+
+# --- 自动获取局域网 IP 地址 ---
+def get_lan_ip():
+    """获取本机的局域网IP地址"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # 不需要真正发送数据，只是用来确定连接的出口IP
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1' # 获取失败则回退到本地地址
+    finally:
+        s.close()
+    return IP
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     """
@@ -27,11 +43,13 @@ if not os.path.isdir(DIRECTORY):
     print(f"请在脚本所在目录下创建一个名为 '{DIRECTORY}' 的文件夹。")
     exit()
 
+lan_ip = get_lan_ip()
+
 # 使用 socketserver 来创建 TCP 服务器
 # TCPServer 会将每个请求交给我们的 Handler 处理
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
+with socketserver.TCPServer(("0.0.0.0", PORT), Handler) as httpd:
     # 获取服务器的实际地址和端口
-    host, port = httpd.server_address
+    # host, port = httpd.server_address
     
     print("=====================================================")
     print(f" 本地服务器已启动！")
@@ -39,6 +57,10 @@ with socketserver.TCPServer(("", PORT), Handler) as httpd:
     print(f" 请在浏览器中打开以下地址进行访问:")
     print(f"   => http://localhost:{PORT}")
     print(f"   => http://127.0.0.1:{PORT}")
+    if lan_ip != '127.0.0.1':
+        print(f"   => 局域网访问: http://{lan_ip}:{PORT}")
+    else:
+        print("   => 未能自动检测到局域网IP。")
     print("=====================================================")
     print("按 Ctrl+C 停止服务器。")
     
