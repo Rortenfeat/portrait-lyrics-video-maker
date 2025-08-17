@@ -38,6 +38,7 @@ class Player {
         this.progressBarTimeRightDom = document.querySelector('.progress-bar-time-right');
         this.artistDom = document.querySelector('.song-artist');
         this.albumDom = document.querySelector('.song-album');
+        this.coverDom = document.querySelector('.cover-image');
     }
     set Time(t) {
         this.time = t;
@@ -54,6 +55,7 @@ class Player {
                 const t_ms = t * 1000;
                 // Lyrics line transition
                 for (let i = 0; i < parsed.length; i++) {
+                    if (t_ms < parsed[0].startMillisecond) break;
                     if (t_ms >= parsed[i].startMillisecond - this.LINE_TRANSITION_DURATION && t_ms < parsed[i].startMillisecond) {
                         let line_interp = 0;
                         if (i > 0 && this.LINE_TRANSITION_DURATION > parsed[i].startMillisecond - parsed[i - 1].startMillisecond) {
@@ -116,6 +118,13 @@ class Player {
     get Album() {
         return this.album;
     }
+    set Cover(url) {
+        if (!url) return;
+        this.coverDom.src = url;
+    }
+    get Cover() {
+        return this.coverDom.src;
+    }
     set Lyrics(lyrics) {
         this.lyrics = lyrics;
         this.hasLyrics = true;
@@ -160,6 +169,7 @@ class Player {
         this.Title = song.title;
         this.Artist = song.artist;
         this.Album = song.album;
+        this.Cover = song.cover;
         if (song.lyrics) this.Lyrics = song.lyrics;
         this.Time = 0;
     }
@@ -313,24 +323,22 @@ class Player {
 }
 
 class Song {
-    constructor(title, artist, duration, raw_lyrics = undefined, album = undefined, callback = undefined) {
-        this.title = title;
-        this.artist = artist;
-        this.raw_lyrics = raw_lyrics;
-        this.duration = duration;
-        this.callback = callback;
-        this.album = album;
+    constructor(data) {
+        this.title = data.title;
+        this.artist = data.artist;
+        this.raw_lyrics = data.lyrics;
+        this.duration = data.duration;
+        this.album = data.album;
+        this.cover = data['cover-base64-url']
         this.parseLyrics();
     }
-    parseLyrics = async () => {
+    parseLyrics() {
         if (!this.raw_lyrics) return;
         const raw = this.raw_lyrics.replace(/\r\n/g, '\n').replace(/\r/g, '\n'); // 处理换行符
 
         const enhancedRegex = new RegExp(/<\d*:\d*\.\d*>/)
         const mode = enhancedRegex.test(raw) ? 'enhanced' : 'normal';
         this.lyrics = new Lyrics(raw, mode);
-
-        if (this.callback && typeof this.callback === 'function') this.callback();
         return;
     }
 }
@@ -381,11 +389,21 @@ class PlaywrightController {
         this.config = config;
 
         if (config.mode === 'single') {
-            const song = new Song(config.title, config.artist, config.duration, config.lyrics, config.album);
+            const song = new Song(config);
             this.songs.push(song);
-            this.player.Song = song;
         } else if (config.mode === 'playlist') {
+            for (let s of config.playlist) {
+                const song = new Song(s);
+                this.songs.push(song);
+            }
         }
+
+        this.jumpToSong(0);
+    }
+    jumpToSong(index) {
+        if (index < 0 || index >= this.songs.length) return;
+        this.player.Song = this.songs[index];
+        return;
     }
     updateFrame(frame, frame_rate) {
         const time = frame / frame_rate;

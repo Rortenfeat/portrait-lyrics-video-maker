@@ -4,7 +4,8 @@ from utils import prewrite_file, get_audio_metadata, is_valid_audio_file, get_lr
 import os
 
 class Config:
-    BASIC_KEYS = ['title', 'artist', 'album', 'duration']
+    BASIC_SONG_KEYS = ['title', 'artist', 'album', 'duration', 'audio', 'lyrics', 'cover-base64-url']
+    BASIC_GENERAL_KEYS = ['custom-message'] # testing
 
     def __init__(self, config_path: str|None = None):
         self.config = {}
@@ -19,10 +20,6 @@ class Config:
     def mode(self, value: str) -> None:
         self.config['mode'] = value
 
-    def set_config(self, key: str, value) -> None:
-        if self.mode == 'single':
-            self.config[key] = value
-
     def load_from_file(self, config_path: str) -> None:
         if not os.path.isfile(config_path): return
 
@@ -33,52 +30,60 @@ class Config:
         get = lambda key: input_config.get(key)
         if get('mode') == 'single':
             self.mode = 'single'
-            for key in self.BASIC_KEYS:
-                if get(key): self.set_config(key, get(key))
-            lyrics = get('lyrics')
-            if get('lyrics_path'):
-                lyrics_path = os.path.join(config_dir, get('lyrics_path'))
-                lyrics = load_lyrics(lyrics_path, lyrics)
-            if lyrics: self.set_config('lyrics', lyrics)
+            for key in self.BASIC_SONG_KEYS:
+                if get(key): self.config[key] = get(key)
+            for key in self.BASIC_GENERAL_KEYS:
+                if get(key): self.config[key] = get(key)
+            # lyrics = get('lyrics')
+            # if get('lyrics_path'):
+            #     lyrics_path = os.path.join(config_dir, get('lyrics_path'))
+            #     lyrics = load_lyrics(lyrics_path, lyrics)
+            # if lyrics: self.config['lyrics'] = lyrics
         elif get('mode') == 'playlist':
             self.mode = 'playlist'
+            for key in self.BASIC_GENERAL_KEYS:
+                if get(key): self.config[key] = get(key)
             if get('playlist'):
                 self.config['playlist'] = []
                 playlist = get('playlist')
                 for song in playlist:
-                    song_ = {}
-                    for key in self.BASIC_KEYS:
-                        if song.get(key): song_[key] = song.get(key)
-                    lyrics = song.get('lyrics')
-                    if song.get('lyrics_path'):
-                        lyrics_path = os.path.join(config_dir, song.get('lyrics_path'))
-                        lyrics = load_lyrics(lyrics_path, lyrics)
-                    if lyrics: song_['lyrics'] = lyrics
-                    self.set_song_config(**song_)
+                    song_data = {}
+                    for key in self.BASIC_SONG_KEYS:
+                        if song.get(key): song_data[key] = song.get(key)
+                    # lyrics = song.get('lyrics')
+                    # if song.get('lyrics_path'):
+                    #     lyrics_path = os.path.join(config_dir, song.get('lyrics_path'))
+                    #     lyrics = load_lyrics(lyrics_path, lyrics)
+                    # if lyrics: song_['lyrics'] = lyrics
+                    self.set_song_config(**song_data)
         return
 
     
+    def set_general_config(self, **kwargs) -> None:
+        for key, value in kwargs.items():
+            if key in self.BASIC_GENERAL_KEYS:
+                self.config[key] = value
+        return
+
     def set_song_config(self, **kwargs) -> None:
         if self.mode == 'single':
-            for key in self.BASIC_KEYS:
-                if key in kwargs: self.set_config(key, kwargs[key])
-            if 'lyrics' in kwargs: self.set_config('lyrics', kwargs['lyrics'])
+            for key, value in kwargs.items():
+                if key in self.BASIC_SONG_KEYS: self.config[key] = value
         elif self.mode == 'playlist':
             if not 'playlist' in self.config: self.config['playlist'] = []
+
             playlist = self.config['playlist']
             if 'index' in kwargs:
                 index = kwargs['index']
                 if index < 0 or index >= len(playlist):
                     raise ValueError('Index out of range.')
                 song = playlist[index]
-                for key in self.BASIC_KEYS:
-                    if key in kwargs: song[key] = kwargs[key]
-                if 'lyrics' in kwargs: song['lyrics'] = kwargs['lyrics']
+                for key, value in kwargs.items():
+                    if key in self.BASIC_SONG_KEYS: song[key] = value
             else:
                 song = {}
-                for key in self.BASIC_KEYS:
-                    if key in kwargs: song[key] = kwargs[key]
-                if 'lyrics' in kwargs: song['lyrics'] = kwargs['lyrics']
+                for key, value in kwargs.items():
+                    if key in self.BASIC_SONG_KEYS: song[key] = value
                 playlist.append(song)
         return
 
@@ -89,42 +94,18 @@ class Config:
 
         song = {}
 
-        if not metadata or 'format' not in metadata:
+        if not metadata:
             print(f'{song_path} is not a valid audio file.')
             return
     
-        # 1. 获取持续时间 (Duration)
-        # 持续时间通常在 'format' -> 'duration' 字段中，单位是秒
-        duration_seconds = float(metadata['format'].get('duration', 0))
-        if duration_seconds: song['duration'] = duration_seconds
-    
-        # 2. 获取 Tags (标题、艺术家、歌词等)
-        # Tags 信息通常在 'format' -> 'tags' 字典中
-        tags = metadata['format'].get('tags', {})
-        
-        # 提取标题 (Title)
-        # .get() 方法可以避免因标签不存在而导致的 KeyError
-        title = tags.get('title', None)
-        if title: song['title'] = title
-    
-        # 提取艺术家 (Artist)
-        artist = tags.get('artist', None)
-        if artist: song['artist'] = artist
-        
-        # 提取专辑 (Album)
-        album = tags.get('album', None)
-        if album: song['album'] = album
-    
-        # 提取歌词 (Lyrics)
-        # 歌词的标签键名可能不统一，常见的有 'lyrics', 'lyrics-eng', 'UNSYNCEDLYRICS' 等
-        # 这里我们做一个不区分大小写的查找
-        lyrics = None
-        for key, value in tags.items():
-            if 'lyrics' in key.lower():
-                lyrics = value
-                break
-        lrc_file = get_lrc_file_path(song_path)
-        lyrics = load_lyrics(lrc_file, lyrics)
+        for key, value in metadata.items():
+            if key in self.BASIC_SONG_KEYS:
+                song[key] = value
+
+        song['audio'] = os.path.abspath(song_path)
+
+        lrc_file = get_lrc_file_path(song['audio'])
+        lyrics = load_lyrics(lrc_file, song.get('lyrics'))
         if lyrics: song['lyrics'] = lyrics
         
         self.set_song_config(**song)
@@ -157,13 +138,13 @@ class Config:
     
     def is_valid(self) -> bool:
         if self.mode == 'single':
-            for key in self.BASIC_KEYS:
+            for key in self.BASIC_SONG_KEYS:
                 if not self.config.get(key): return False
             if not self.config.get('lyrics'): return False
         elif self.mode == 'playlist':
             if not self.config.get('playlist'): return False
             for song in self.config['playlist']:
-                for key in self.BASIC_KEYS:
+                for key in self.BASIC_SONG_KEYS:
                     if not song.get(key): return False
                 if not song.get('lyrics'): return False
         else: return False
@@ -185,14 +166,19 @@ class Config:
         if self.mode =='single':
             res += '=========================' + '\n'
             res += f'Mode: single' + '\n'
-            for key in self.BASIC_KEYS:
+            for key in self.BASIC_GENERAL_KEYS:
                 res += f'{key.capitalize()}: {get(key)}' + '\n'
-            res += f'Lyrics: {shorten(get("lyrics"))}' + '\n'
+            for key in self.BASIC_SONG_KEYS:
+                if key in ['lyrics', 'cover-base64-url']:
+                    res += f'{key.capitalize()}: {shorten(get(key))}' + '\n'
+                else:
+                    res += f'{key.capitalize()}: {get(key)}' + '\n'
             res += '=========================' + '\n'
         elif self.mode == 'playlist':
             res += '=========================' + '\n'
             res += f'Mode: playlist' + '\n'
-            # res += f'Title: {get("title")}' + '\n'
+            for key in self.BASIC_GENERAL_KEYS:
+                res += f'{key.capitalize()}: {get(key)}' + '\n'
             res += 'Playlist:' + '\n'
             if ( self.config['playlist'] ):
                 for i, song in enumerate(self.config['playlist']):
@@ -201,26 +187,37 @@ class Config:
                         if not res: res = 'UNDEFINED'
                         return str(res)
                     res += f'    Index: {i}' + '\n'
-                    for key in self.BASIC_KEYS:
-                        res += f'        {key.capitalize()}: {get_(key)}' + '\n'
-                    res += f'        Lyrics: {shorten(get_("lyrics"))}' + '\n'
+                    for key in self.BASIC_SONG_KEYS:
+                        if key in ['lyrics', 'cover-base64-url']:
+                            res += f'        {key.capitalize()}: {shorten(get_(key))}' + '\n'
+                        else:
+                            res += f'        {key.capitalize()}: {get_(key)}' + '\n'
             else:
                 res += '    Playlist is empty.' + '\n'
             res += '=========================' + '\n'
         return res
+    
+    def __len__(self) -> int:
+        if self.mode =='single':
+            return 1
+        elif self.mode == 'playlist':
+            return len(self.config['playlist'])
+        else: return 0
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('command', type=str, choices=['read', 'write'], help='To read or write the config file.')
     parser.add_argument('config_path', type=str, help='Path to the config file to read or write.')
     parser.add_argument('-m', '--mode', type=str, choices=['single', 'playlist'], default=None, help='Available when "write" is specified. Set the mode of the config file. Default is "single".')
-    parser.add_argument('-s', '--song', nargs='+', type=str, help='Available when "write" is specified. It can be one or multiple song files or folders containing songs, and the program will recognize the song information as configuration. When the config mode is "single", only the first song file found will take effect.')
-    parser.add_argument('-i', '--index', type=int, help='Available when "write" is specified. Required when setting a existing song in "playlist" mode. The index can be found by checking "read" command.')
-    parser.add_argument('-t', '--title', type=str, help='Available when "write" is specified. Set the title of the song.')
-    parser.add_argument('-a', '--artist', type=str, help='Available when "write" is specified. Set the artist of the song.')
-    parser.add_argument('-A', '--album', type=str, help='Available when "write" is specified. Set the album of the song.')
-    parser.add_argument('-d', '--duration', type=float, help='Available when "write" is specified. Set the duration of the song in seconds.')
-    parser.add_argument('-l', '--lyrics-file', type=str, help='Available when "write" is specified. Set the path to the file containing the lyrics of the song.')
+    parser.add_argument('-l', '--load', nargs='+', type=str, help='Available when "write" is specified. It can be one or multiple song files or folders containing songs, and the program will recognize the song information as configuration. When the config mode is "single", only the first song file found will take effect.')
+    parser.add_argument('-s', '--set', nargs='*', metavar=('INDEX_OR_KEY', 'VALUE'), help='Available when "write" is specified. Set song properties. Usage: [-s [INDEX] key1 value1 key2 value2 ...]. In playlist mode, an optional numeric INDEX can be provided first to modify an existing song.')
+    # parser.add_argument('-i', '--index', type=int, help='Available when "write" is specified. Required when setting a existing song in "playlist" mode. The index can be found by checking "read" command.')
+    # parser.add_argument('-t', '--title', type=str, help='Available when "write" is specified. Set the title of the song.')
+    # parser.add_argument('-a', '--artist', type=str, help='Available when "write" is specified. Set the artist of the song.')
+    # parser.add_argument('-A', '--album', type=str, help='Available when "write" is specified. Set the album of the song.')
+    # parser.add_argument('-d', '--duration', type=float, help='Available when "write" is specified. Set the duration of the song in seconds.')
+    # parser.add_argument('-C', '--custom', nargs='2', type=str, help='Available when "write" is specified. Set a custom key-value pair argument to the song. The first argument is the key, and the second argument is the value.')
+    # parser.add_argument('-l', '--lyrics-file', type=str, help='Available when "write" is specified. Set the path to the file containing the lyrics of the song.')
 
     args = parser.parse_args()
 
@@ -232,34 +229,87 @@ def main():
         if args.mode:
             mode = args.mode
             config.mode = mode
+        if args.load:
+            config.parse_song(*args.load)
+        if args.set:
+            set_args = args.set
+            index = None
+
+            if mode == 'playlist' and set_args and set_args[0].isdigit():
+                try:
+                    index = int(set_args[0])
+                    set_args = set_args[1:]
+                except ValueError:
+                    pass
+            
+            if len(set_args) % 2 != 0:
+                parser.error('Arguments for --set must be in key-value pairs.')
+            
+            song_data = {}
+            general_data = {}
+            song_keys = list(config.BASIC_SONG_KEYS) + ['lyrics-file']
+            general_keys = list(config.BASIC_GENERAL_KEYS)
+
+            kv_pairs = {set_args[i]: set_args[i + 1] for i in range(0, len(set_args), 2)}
+
+            for key, value in kv_pairs.items():
+                if key in song_keys:
+                    if key == 'lyrics-file':
+                        lyrics = load_lyrics(args.lyrics_file)
+                        if lyrics: song_data['lyrics'] = lyrics
+                    elif key == 'duration':
+                        try:
+                            song_data[key] = float(value)
+                        except ValueError:
+                            parser.error(f'Duration must be a float number, but got "{value}".')
+                    else:
+                        song_data[key] = value
+                elif key in general_keys:
+                    general_data[key] = value
+                else:
+                    parser.error(f'Unknown key "{key}".')
+
+            if song_data:
+                if index is not None:
+                    song_data['index'] = index
+                config.set_song_config(**song_data)
+            if general_data:
+                config.set_general_config(**general_data)
+
+
+
+
+
         # print(mode)
-        if mode == 'single':
-            if args.song:
-                config.parse_song(*args.song)
-            else:
-                song = {}
-                if args.title: song['title'] = args.title
-                if args.artist: song['artist'] = args.artist
-                if args.album: song['album'] = args.artist
-                if args.duration: song['duration'] = args.duration
-                if args.lyrics_file:
-                    lyrics = load_lyrics(args.lyrics_file)
-                    if lyrics: song['lyrics'] = lyrics
-                config.set_song_config(**song)
-        elif mode == 'playlist':
-            if args.song:
-                config.parse_song(*args.song)
-            else:
-                song = {}
-                if args.index or args.index == 0: song['index'] = args.index
-                if args.title: song['title'] = args.title
-                if args.artist: song['artist'] = args.artist
-                if args.album: song['album'] = args.artist
-                if args.duration: song['duration'] = args.duration
-                if args.lyrics_file:
-                    lyrics = load_lyrics(args.lyrics_file)
-                    if lyrics: song['lyrics'] = lyrics
-                config.set_song_config(**song)
+        # if mode == 'single':
+        #     if args.song:
+        #         config.parse_song(*args.song)
+        #     else:
+        #         song = {}
+        #         if args.title: song['title'] = args.title
+        #         if args.artist: song['artist'] = args.artist
+        #         if args.album: song['album'] = args.artist
+        #         if args.duration: song['duration'] = args.duration
+        #         if args.lyrics_file:
+        #             lyrics = load_lyrics(args.lyrics_file)
+        #             if lyrics: song['lyrics'] = lyrics
+        #         config.set_song_config(**song)
+        # elif mode == 'playlist':
+        #     if args.song:
+        #         config.parse_song(*args.song)
+        #     elif type(args.index) == int and args.index and args.index >= 0 and args.index < len(config):
+        #         song = {}
+        #         song['index'] = args.index
+        #         if args.title: song['title'] = args.title
+        #         if args.artist: song['artist'] = args.artist
+        #         if args.album: song['album'] = args.album
+        #         if args.duration: song['duration'] = args.duration
+        #         if args.lyrics_file:
+        #             lyrics = load_lyrics(args.lyrics_file)
+        #             if lyrics: song['lyrics'] = lyrics
+        #         config.set_song_config(**song)
+        #     else:
+        #         print('Index not specified or out of range.')
         print('Writting config:')
         print(str(config))
         ans = input('Are you sure to save the config? (y/n) ')

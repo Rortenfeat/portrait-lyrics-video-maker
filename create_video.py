@@ -5,21 +5,24 @@ import asyncio
 from playwright.async_api import async_playwright
 import mimetypes
 import argparse
-from utils import prewrite_file, HtmlTempManager
+from utils import prewrite_file, HtmlTempManager, is_valid_audio_file
 from config import Config
 from urllib.parse import urljoin, urlparse
+import time
+import atexit
 
 # --- Video generation constants ---
 WIDTH, HEIGHT = 1080, 2160
 # DURATION_SECONDS = 10
 FPS = 30 # Frames per second
-CRF = '18' # Constant Rate Factor
+CRF = '20' # Constant Rate Factor
 WEB_FILE_ROOT = os.path.join(os.getcwd(),'html')
 HOMEPAGE = 'index.html'
 URL_PREFIX = 'http://portrait-lyrics-video-maker/'
 
 mimetypes.init()
 mimetypes.add_type('application/javascript', '.js')
+
 
 async def context_routes(route, request): 
     if request.url.startswith(URL_PREFIX):
@@ -73,6 +76,10 @@ async def main(config: Config, config_path: str, output_path: str):
 
         total_frames = int(duration * FPS)
 
+        audio_file = config.config.get('audio', '')
+        if not os.path.isfile(audio_file) and not is_valid_audio_file(audio_file):
+            raise ValueError(f"Invalid audio file: {audio_file}")
+
         # FFmpeg command line arguments
         ffmpeg_command = [
             'ffmpeg',
@@ -81,9 +88,15 @@ async def main(config: Config, config_path: str, output_path: str):
             '-framerate', str(FPS),
             '-s', f'{WIDTH}x{HEIGHT}',
             '-i', '-',
+            '-i', audio_file,
             '-c:v', 'libx264',
             '-pix_fmt', 'yuv420p',
             '-crf', CRF,
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-map', '0:v:0',
+            '-map', '1:a:0',
+            '-shortest',  # Shortest possible duration
             output_path,
         ]
         prewrite_file(output_path)
@@ -97,17 +110,29 @@ async def main(config: Config, config_path: str, output_path: str):
             stderr=sys.stderr
         )
 
+        total_time_start = time.monotonic()
+        total_eval_time = 0
+        total_screenshot_time = 0
+        total_write_time = 0
+
         # --- 帧生成循环 ---
         for i in range(total_frames):
+
+            t_start = time.monotonic()
 
             # 在浏览器页面上执行 JS 函数来更新帧内容
             await controller.evaluate('(controller, data) => controller.updateFrame(data.frame, data.frame_rate)', {
                 "frame": i,
                 "frame_rate": FPS
             })
+
+            t_eval_end = time.monotonic()
+            total_eval_time += t_eval_end - t_start
             
             # 截取当前页面，不保存为文件，而是获取其二进制数据
-            screenshot_bytes = await page.screenshot(type="png")
+            screenshot_bytes = await page.screenshot(type="jpeg", animations='disabled', scale='css', quality=90)
+            t_screenshot_end = time.monotonic()
+            total_screenshot_time += t_screenshot_end - t_eval_end
             
             try:
                 # 将 PNG 图像的二进制数据写入FFmpeg
@@ -118,6 +143,9 @@ async def main(config: Config, config_path: str, output_path: str):
                 print("FFmpeg process exited unexpectedly. Aborting.", file=sys.stderr)
                 break
             
+            t_write_end = time.monotonic()
+            total_write_time += t_write_end - t_screenshot_end
+
             # 在标准错误流中打印进度，避免污染输出管道
             print(f"Generated frame {i + 1}/{total_frames}", file=sys.stderr)
 
@@ -128,6 +156,25 @@ async def main(config: Config, config_path: str, output_path: str):
             ffmpeg_process.stdin.close()
         ffmpeg_process.wait()
         print("FFmpeg process finished.")
+
+        total_time_end = time.monotonic()
+        
+        print("\n\n--- Performance Analysis Report ---")
+        total_duration = total_time_end - total_time_start
+        producer_time = total_eval_time + total_screenshot_time
+        print(f"Total script execution time: {total_duration:.2f} seconds")
+        print(f"Generated {total_frames} frames at an average of {total_frames / total_duration:.2f} FPS.")
+        print("-" * 35)
+        print("Time spent per stage (in total):")
+        print(f"  - Updating frames (JS eval): {total_eval_time:.2f} s ({total_eval_time/total_duration:.1%})")
+        print(f"  - Screenshot & transfer:     {total_screenshot_time:.2f} s ({total_screenshot_time/total_duration:.1%})")
+        print(f"  - Writing to FFmpeg pipe:    {total_write_time:.2f} s ({total_write_time/total_duration:.1%})")
+        print("-" * 35)
+        print("Average time per frame:")
+        print(f"  - Update:   {total_eval_time / total_frames * 1000:.2f} ms")
+        print(f"  - Screenshot: {total_screenshot_time / total_frames * 1000:.2f} ms")
+        print(f"  - Write:      {total_write_time / total_frames * 1000:.2f} ms")
+        print("-" * 35)
 
 
 

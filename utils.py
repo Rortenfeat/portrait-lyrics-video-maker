@@ -1,10 +1,13 @@
 import os
-import subprocess
 import sys
 import json
 import time
 from typing import TypedDict
 import atexit
+import mutagen
+from mutagen._file import File
+from mutagen.id3 import ID3
+import base64
 
 def prewrite_file(path: str) -> None:
     path = os.path.abspath(path)
@@ -19,50 +22,83 @@ def prewrite_file(path: str) -> None:
 def save_print(text: str) -> None:
     pass
 
-def get_audio_metadata(file_path: str) -> dict|None:
+def get_audio_metadata(filepath):
     """
-    使用 ffprobe 获取音频文件的元数据. 
+    从音频文件中提取详细的元数据。
 
-    :param file_path: 音频文件的路径
-    :return: 一个包含元数据信息的字典, 如果出错则返回 None
+    :param filepath: 音频文件的路径
+    :return: 一个包含元数据的字典，如果无法处理则返回 None
     """
+    if not os.path.exists(filepath):
+        return None
+
     try:
-        # 构建 ffprobe 命令
-        # -v quiet:       减少不必要的日志输出
-        # -print_format json: 输出为 JSON 格式
-        # -show_format:   显示容器格式信息（包含时长、标签等）
-        # -show_streams:  显示流信息（如果需要编码、采样率等）
-        command = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_format',
-            '-show_streams',
-            file_path
-        ]
+        audio = File(filepath)
+        if audio is None:
+            print(f"Error: Mutagen can not handle this file {filepath}.")
+            return None
 
-        # 执行命令并捕获输出
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            check=True, # 如果 ffprobe 返回非零退出码, 则抛出异常
-            encoding='utf-8' # 确保正确解码输出
-        )
+        metadata = {
+            'title': 'N/A',
+            'artist': 'N/A',
+            'album': 'N/A',
+            'duration': 0,
+            'lyrics': 'N/A',
+            'cover-base64-url': None
+        }
 
-        # 解析 JSON 输出
-        metadata = json.loads(result.stdout)
+        # 1. 获取时长
+        if audio.info:
+            metadata['duration'] = float(audio.info.length)
+
+        # 2. 获取标签 (标题, 艺术家, 专辑, 歌词)
+        # 不同格式的标签键名不同，我们尝试兼容
+        # MP3 (ID3)
+        if isinstance(audio.tags, ID3):
+            metadata['title'] = audio.tags.get('TIT2', ['N/A'])[0] # type: ignore
+            metadata['artist'] = audio.tags.get('TPE1', ['N/A'])[0] # type: ignore
+            metadata['album'] = audio.tags.get('TALB', ['N/A'])[0] # type: ignore
+            # 歌词通常在 USLT 帧中
+            uslt_frame = audio.tags.getall('USLT')
+            if uslt_frame:
+                metadata['lyrics'] = uslt_frame[0].text
+        # FLAC, OGG (Vorbis Comments)
+        else:
+            metadata['title'] = audio.tags.get('title', ['N/A'])[0]
+            metadata['artist'] = audio.tags.get('artist', ['N/A'])[0]
+            metadata['album'] = audio.tags.get('album', ['N/A'])[0]
+            metadata['lyrics'] = audio.tags.get('lyrics', ['N/A'])[0]
+            
+            
+        # 3. 获取封面并转换为 Base64 Data URL
+        artwork_data = None
+        mime_type = None
+
+        # MP3 (ID3)
+        # if 'APIC:' in audio.tags:
+        #     artwork_data = audio.tags['APIC:'].data
+        #     mime_type = audio.tags['APIC:'].mime
+        # FLAC, M4A, etc.
+        # elif 'picture' in audio:
+        #     artwork_data = audio.pictures[0].data
+        #     mime_type = audio.pictures[0].mime
+
+        for key in audio.keys():
+            if key == 'pictures':
+                artwork_data = audio.pictures[0].data
+                mime_type = audio.pictures[0].mime
+            elif key.startswith('APIC:'):
+                artwork_data = audio.tags[key].data
+                mime_type = audio.tags[key].mime
+        
+        if artwork_data and mime_type:
+            base64_data = base64.b64encode(artwork_data).decode('utf-8')
+            metadata['cover-base64-url'] = f"data:{mime_type};base64,{base64_data}"
+
         return metadata
 
-    except FileNotFoundError:
-        print("错误: 'ffprobe' 命令未找到. 请确保 FFmpeg 已安装并位于系统的 PATH 中. ", file=sys.stderr)
-        return None
-    except subprocess.CalledProcessError as e:
-        print(f"错误: ffprobe 执行失败. 返回码: {e.returncode}", file=sys.stderr)
-        print(f"ffprobe 输出: {e.stderr}", file=sys.stderr)
-        return None
-    except json.JSONDecodeError:
-        print("错误: 解析 ffprobe 的 JSON 输出失败. ", file=sys.stderr)
+    except Exception as e:
+        print(f"Error while getting metadata from {filepath}: {e}")
         return None
     
 def is_valid_audio_file(file_path: str) -> bool:
