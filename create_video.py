@@ -9,20 +9,24 @@ from utils import prewrite_file, HtmlTempManager, is_valid_audio_file
 from config import Config
 from urllib.parse import urljoin, urlparse
 import time
-import atexit
+from tqdm import tqdm
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Video generation constants ---
-WIDTH, HEIGHT = 1080, 2160
-# DURATION_SECONDS = 10
-FPS = 30 # Frames per second
-CRF = '20' # Constant Rate Factor
-WEB_FILE_ROOT = os.path.join(os.getcwd(),'html')
-HOMEPAGE = 'index.html'
+WIDTH = int(os.environ.get('VIDEO_WIDTH', '1080'))
+HEIGHT = int(os.environ.get('VIDEO_HEIGHT', '2160'))
+FPS = int(os.environ.get('VIDEO_FPS', '30'))
+CRF = os.environ.get('VIDEO_CRF', '20')
+WEB_FILE_ROOT = os.path.abspath(os.environ.get('WEB_ROOT_PATH', 'html'))
+HOMEPAGE = os.environ.get('HOMEPAGE', 'index.html')
 URL_PREFIX = 'http://portrait-lyrics-video-maker/'
 
 mimetypes.init()
 mimetypes.add_type('application/javascript', '.js')
 
+htm = HtmlTempManager(WEB_FILE_ROOT)
 
 async def context_routes(route, request): 
     if request.url.startswith(URL_PREFIX):
@@ -43,113 +47,149 @@ async def main(config: Config, config_path: str, output_path: str):
 
     async with async_playwright() as p:
         # 启动一个无头浏览器
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context()
-        await context.route("**/*", context_routes)
+        async with await p.chromium.launch(headless=True) as browser:
+            context = await browser.new_context()
+            await context.route("**/*", context_routes)
 
-        page = await context.new_page()
+            page = await context.new_page()
 
-        # 设置视口大小，确保截图尺寸一致
-        await page.set_viewport_size({"width": WIDTH, "height": HEIGHT})
+            # 设置视口大小，确保截图尺寸一致
+            await page.set_viewport_size({"width": WIDTH, "height": HEIGHT})
 
-        html_path = urljoin(URL_PREFIX, HOMEPAGE)
-        await page.goto(html_path, wait_until='load')
+            html_path = urljoin(URL_PREFIX, HOMEPAGE)
+            await page.goto(html_path, wait_until='load')
 
-        # print(page.url, await page.title())
-        # await(page.screenshot(path='test.png'))
+            # print(page.url, await page.title())
+            # await(page.screenshot(path='test.png'))
 
-        controller = await page.evaluate_handle("window.lv.controller")
+            controller = await page.evaluate_handle("window.lv.controller")
 
-        # print(await controller.evaluate('(controller) => controller.testMessage'))
-        # return
+            # print(await controller.evaluate('(controller) => controller.testMessage'))
+            # return
 
-        await controller.evaluate('async (controller, data) => await controller.setup(data.config_path)', {
-            "config_path": config_path
-        })
-
-        # Video configuration
-        duration = 10
-        if config.mode == 'single':
-            duration = config.config.get('duration', 10)
-        elif config.mode == 'playlist':
-            pass # [TODO]
-
-        total_frames = int(duration * FPS)
-
-        audio_file = config.config.get('audio', '')
-        if not os.path.isfile(audio_file) and not is_valid_audio_file(audio_file):
-            raise ValueError(f"Invalid audio file: {audio_file}")
-
-        # FFmpeg command line arguments
-        ffmpeg_command = [
-            'ffmpeg',
-            '-y',  # Overwrite output file if it exists
-            '-f', 'image2pipe',
-            '-framerate', str(FPS),
-            '-s', f'{WIDTH}x{HEIGHT}',
-            '-i', '-',
-            '-i', audio_file,
-            '-c:v', 'libx264',
-            '-pix_fmt', 'yuv420p',
-            '-crf', CRF,
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-map', '0:v:0',
-            '-map', '1:a:0',
-            '-shortest',  # Shortest possible duration
-            output_path,
-        ]
-        prewrite_file(output_path)
-
-        # Lauch FFmpeg process
-        print(f"Starting FFmpeg process: {' '.join(ffmpeg_command)}")
-        ffmpeg_process = subprocess.Popen(
-            ffmpeg_command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.DEVNULL,
-            stderr=sys.stderr
-        )
-
-        total_time_start = time.monotonic()
-        total_eval_time = 0
-        total_screenshot_time = 0
-        total_write_time = 0
-
-        # --- 帧生成循环 ---
-        for i in range(total_frames):
-
-            t_start = time.monotonic()
-
-            # 在浏览器页面上执行 JS 函数来更新帧内容
-            await controller.evaluate('(controller, data) => controller.updateFrame(data.frame, data.frame_rate)', {
-                "frame": i,
-                "frame_rate": FPS
+            await controller.evaluate('async (controller, data) => await controller.setup(data.config_path)', {
+                "config_path": config_path
             })
 
-            t_eval_end = time.monotonic()
-            total_eval_time += t_eval_end - t_start
-            
-            # 截取当前页面，不保存为文件，而是获取其二进制数据
-            screenshot_bytes = await page.screenshot(type="jpeg", animations='disabled', scale='css', quality=90)
-            t_screenshot_end = time.monotonic()
-            total_screenshot_time += t_screenshot_end - t_eval_end
-            
-            try:
-                # 将 PNG 图像的二进制数据写入FFmpeg
-                if ffmpeg_process.stdin:
-                    ffmpeg_process.stdin.write(screenshot_bytes)
-            except BrokenPipeError:
-                # 当 FFmpeg 进程关闭管道时，会发生此错误。
-                print("FFmpeg process exited unexpectedly. Aborting.", file=sys.stderr)
-                break
-            
-            t_write_end = time.monotonic()
-            total_write_time += t_write_end - t_screenshot_end
+            # Video configuration
+            duration_list = config.get_duration_list()
+            if not duration_list:
+                raise ValueError("Duration list is empty.")
+            frames_list = [int(d * FPS) for d in duration_list]
+            total_frames = sum(frames_list)
 
-            # 在标准错误流中打印进度，避免污染输出管道
-            print(f"Generated frame {i + 1}/{total_frames}", file=sys.stderr)
+            audio_list = config.get_audio_list()
 
-        await browser.close()
+            audio_list_text = ''
+            for audio in audio_list:
+                if not os.path.isfile(audio) or not is_valid_audio_file(audio):
+                    raise ValueError(f"Invalid audio file: {audio}")
+                if "'" in audio:
+                    raise ValueError(f"Audio file name contains apostrophe: {audio}")
+                audio_list_text += f"file '{audio.replace("\\", "/")}'\n"
+
+            audio_list_path = htm.add_temp_file('audio_list.txt', audio_list_text).get('path')
+
+            # FFmpeg command line arguments
+            ffmpeg_command = [
+                'ffmpeg',
+                '-y',  # Overwrite output file if it exists
+
+                # Video input
+                '-f', 'image2pipe',
+                '-framerate', str(FPS),
+                '-s', f'{WIDTH}x{HEIGHT}',
+                '-c:v', 'mjpeg',
+                '-color_range', 'pc',
+                '-i', '-',
+
+                # Audio input
+                '-f', 'concat',
+                '-safe', '0',  # Allow absolute paths
+                '-i', audio_list_path,
+
+                # Output
+                '-c:v', 'libx264',
+                '-pix_fmt', 'yuv420p',
+                '-crf', CRF,
+                '-color_range', 'tv',
+                '-colorspace', 'bt709',
+                '-color_primaries', 'bt709',
+                '-color_trc', 'bt709',
+
+                '-c:a', 'aac',
+                '-b:a', '320k',
+
+                # Stream mapping
+                '-map', '0:v:0',
+                '-map', '1:a:0',
+
+                '-shortest',  # Shortest possible duration
+                output_path,
+            ]
+            prewrite_file(output_path)
+
+            # Lauch FFmpeg process
+            print(f"Starting FFmpeg process: {' '.join(ffmpeg_command)}")
+            ffmpeg_process = subprocess.Popen(
+                ffmpeg_command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=sys.stderr
+            )
+
+            total_time_start = time.monotonic()
+            total_eval_time = 0
+            total_screenshot_time = 0
+            total_write_time = 0
+            skipped_frames = 0
+
+            # --- 帧生成循环 ---
+            for i, frames in tqdm(enumerate(frames_list), total=len(frames_list), desc="Generating video"):
+                await controller.evaluate('(controller, data) => controller.jumpToSong(data.index)', {
+                        "index": i
+                })
+
+                previous_screenshot_bytes = None
+
+                for j in tqdm(range(frames)):
+
+                    t_start = time.monotonic()
+
+                    # 在浏览器页面上执行 JS 函数来更新帧内容
+                    has_changed = await controller.evaluate('(controller, data) => {return controller.updateFrame(data.frame, data.frame_rate)}', {
+                        "frame": j,
+                        "frame_rate": FPS
+                    })
+
+                    t_eval_end = time.monotonic()
+                    total_eval_time += t_eval_end - t_start
+
+                    # 截取当前页面，不保存为文件，而是获取其二进制数据
+                    if has_changed or previous_screenshot_bytes is None:
+                        screenshot_bytes = await page.screenshot(type="jpeg", animations='disabled', scale='css', quality=90)
+                        previous_screenshot_bytes = screenshot_bytes
+                    else:
+                        screenshot_bytes = previous_screenshot_bytes
+                        skipped_frames += 1
+                    t_screenshot_end = time.monotonic()
+                    total_screenshot_time += t_screenshot_end - t_eval_end
+
+                    try:
+                        # 将 PNG 图像的二进制数据写入FFmpeg
+                        if ffmpeg_process.stdin:
+                            ffmpeg_process.stdin.write(screenshot_bytes)
+                    except BrokenPipeError:
+                        # 当 FFmpeg 进程关闭管道时，会发生此错误。
+                        print("FFmpeg process exited unexpectedly. Aborting.", file=sys.stderr)
+                        break
+                    
+                    t_write_end = time.monotonic()
+                    total_write_time += t_write_end - t_screenshot_end
+
+                    # 在标准错误流中打印进度，避免污染输出管道
+                    # print(f"Generated frame {j + 1}/{total_frames}  ", file=sys.stderr)
+    
         print("Frame generation complete.")
 
         if ffmpeg_process.stdin:
@@ -164,6 +204,7 @@ async def main(config: Config, config_path: str, output_path: str):
         producer_time = total_eval_time + total_screenshot_time
         print(f"Total script execution time: {total_duration:.2f} seconds")
         print(f"Generated {total_frames} frames at an average of {total_frames / total_duration:.2f} FPS.")
+        print(f"Skipped screenshots of {skipped_frames} frames due to unchanged content.")
         print("-" * 35)
         print("Time spent per stage (in total):")
         print(f"  - Updating frames (JS eval): {total_eval_time:.2f} s ({total_eval_time/total_duration:.1%})")
@@ -172,7 +213,7 @@ async def main(config: Config, config_path: str, output_path: str):
         print("-" * 35)
         print("Average time per frame:")
         print(f"  - Update:   {total_eval_time / total_frames * 1000:.2f} ms")
-        print(f"  - Screenshot: {total_screenshot_time / total_frames * 1000:.2f} ms")
+        print(f"  - Screenshot: {total_screenshot_time / (total_frames - skipped_frames) * 1000:.2f} ms")
         print(f"  - Write:      {total_write_time / total_frames * 1000:.2f} ms")
         print("-" * 35)
 
@@ -197,11 +238,11 @@ def run():
         ans = input("Continue? (y/n)")
         if ans.lower() != 'y': return
 
-        htm = HtmlTempManager(WEB_FILE_ROOT)
         config_temp = htm.add_temp_file('config.json', con.to_json())
         config_temp_path = urljoin(URL_PREFIX, config_temp['url_path'])
 
         asyncio.run(main(con, config_temp_path, args.output))
+
 
     else:
         print("Config file not found.")

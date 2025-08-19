@@ -23,7 +23,7 @@ class Config:
     def load_from_file(self, config_path: str) -> None:
         if not os.path.isfile(config_path): return
 
-        input_config = json.load(open(config_path))
+        input_config = json.load(open(config_path, 'r', encoding='utf-8'))
         config_dir = os.path.abspath(os.path.dirname(config_path))
         self.config_dir = config_dir
 
@@ -149,6 +149,23 @@ class Config:
                 if not song.get('lyrics'): return False
         else: return False
         return True
+    
+    def get_duration(self) -> float:
+        return sum(self.get_duration_list())
+    
+    def get_duration_list(self) -> list[float] :
+        if self.mode =='single':
+            return [self.config.get('duration', 0.0)]
+        elif self.mode == 'playlist':
+            return [song.get('duration', 0.0) for song in self.config['playlist']]
+        return []
+    
+    def get_audio_list(self) -> list[str]:
+        if self.mode =='single':
+            return [self.config.get('audio', '')]
+        elif self.mode == 'playlist':
+            return [song.get('audio', '') for song in self.config['playlist']]
+        return []
     
     def __str__(self) -> str:
         if not self.config:

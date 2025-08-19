@@ -27,7 +27,6 @@ class Player {
     LINE_TRANSITION_DURATION = 1000; // ms
 
     constructor(song = undefined) {
-        this.hasLyrics = false;
         if (song) {
             this.Song = song;
         }
@@ -44,10 +43,19 @@ class Player {
         this.time = t;
 
         if (this.Song) {
-            this.progressBarTimeLeftDom.textContent = this.formatTime(t);
+            const left_time = this.formatTime(t);
+            if (this.progressBarTimeLeftDom.textContent != left_time) {
+                this.progressBarTimeLeftDom.textContent = left_time;
+            }
             if (this.Song.duration) {
-                this.progressBarTimeRightDom.textContent = this.formatTime(this.Song.duration - t);
-                this.progressBarDom.style.setProperty('--progress', `${Math.min(1, (t / this.Song.duration)) * 100}%`);
+                const right_time = this.formatTime(this.Song.duration - t);
+                if (this.progressBarTimeRightDom.textContent != right_time) {
+                    this.progressBarTimeRightDom.textContent = right_time;
+                }
+                const progress = `${Math.round(Math.min(1, (t / this.Song.duration)) * 100 * 10) / 10}%`;
+                if (this.progressBarDom.style.getPropertyValue('--progress')!= progress) {
+                    this.progressBarDom.style.setProperty('--progress', progress);
+                }
             }
 
             if (this.hasLyrics) {
@@ -125,9 +133,12 @@ class Player {
     get Cover() {
         return this.coverDom.src;
     }
+    get hasLyrics() {
+        return this.lyrics ? true : false;
+    }
     set Lyrics(lyrics) {
         this.lyrics = lyrics;
-        this.hasLyrics = true;
+        if (!lyrics || !(lyrics instanceof Lyrics)) return;
 
         this.lyricsContainerDom.innerHTML = '';
         this.lyrics.plain.forEach((line, index) => {
@@ -157,6 +168,7 @@ class Player {
     }
     set Song(song) {
         this.song = song;
+        if (!song || !(song instanceof Song)) return;
         this.initSong();
     }
     get Song() {
@@ -164,13 +176,19 @@ class Player {
     }
     initSong() {
         const song = this.song;
-        if (!song) return;
+        if (!song || !(song instanceof Song)) return;
+
+        this.currentLine = undefined;
+        this.currentWord = undefined;
+        this.activeLine = undefined;
+        this.Lyrics = undefined;
 
         this.Title = song.title;
         this.Artist = song.artist;
         this.Album = song.album;
         this.Cover = song.cover;
         if (song.lyrics) this.Lyrics = song.lyrics;
+
         this.Time = 0;
     }
     formatTime(t) {
@@ -266,6 +284,10 @@ class Player {
     stopTimer() {
         clearInterval(this.timer);
     }
+
+    get hasActiveLine() {
+        return this.activeLine !== undefined;
+    }
     /**
      * Class style handling for line activation
      * @param {number} line
@@ -289,7 +311,6 @@ class Player {
                 if (classList.contains('past')) classList.remove('past');
             }
         }
-        this.hasActiveLine = true;
         this.activeLine = line;
         return;
     }
@@ -319,6 +340,22 @@ class Player {
             }
         }
         return;
+    }
+    getVisualState() {
+        const title = this.Title;
+        const artist = this.Artist;
+        const album = this.Album;
+        const cover = this.Cover;
+        const left_time = this.progressBarTimeLeftDom.textContent;
+        const right_time = this.progressBarTimeRightDom.textContent;
+        const progress = this.progressBarDom.style.getPropertyValue('--progress');
+        const lyrics = this.Lyrics.raw;
+        const currentLine = this.currentLine;
+        const activeLine = this.activeLine;
+        const currentWord = this.currentWord ? this.currentWord.closest('.lyric-scroll-wrapper').scrollLeft : undefined;
+
+        const state = [title, artist, album, cover, left_time, right_time, progress, lyrics, currentLine, activeLine, currentWord].join('|');
+        return state;
     }
 }
 
@@ -382,7 +419,8 @@ class PlaywrightController {
     constructor(player) {
         this.player = player;
         this.songs = [];
-        this.testMessage = 'Hello, playwright!'
+        this.testMessage = 'Hello, playwright!';
+        this.previousState = '';
     }
     async setup(config_path) {
         const config = await fetch(config_path).then(response => response.json());
@@ -408,7 +446,15 @@ class PlaywrightController {
     updateFrame(frame, frame_rate) {
         const time = frame / frame_rate;
         this.player.Time = time;
+        const currentState = this.player.getVisualState();
+        if (currentState === this.previousState) {
+            return false;
+        }
+        this.previousState = currentState;
+        // console.log('Changed.');
+        return true;
     }
+
 }
 
 const player = new Player();
