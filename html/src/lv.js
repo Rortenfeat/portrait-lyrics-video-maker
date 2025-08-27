@@ -1,4 +1,4 @@
-import { parse, parseEnhanced, LineType } from './clrc.js';
+import { parse, parseEnhanced, LineType } from '/src/clrc.js';
 
 /**
  * Get pixels of 1 rem
@@ -33,6 +33,7 @@ class Player {
         this.titleDom = document.querySelector('.song-title');
         this.lyricsContainerDom = document.querySelector('.lyrics-container');
         this.progressBarDom = document.querySelector('.progress-bar');
+        this.progressBarPointerDom = document.querySelector('.progress-bar-pointer');
         this.progressBarTimeLeftDom = document.querySelector('.progress-bar-time-left');
         this.progressBarTimeRightDom = document.querySelector('.progress-bar-time-right');
         this.artistDom = document.querySelector('.song-artist');
@@ -52,7 +53,7 @@ class Player {
                 if (this.progressBarTimeRightDom.textContent != right_time) {
                     this.progressBarTimeRightDom.textContent = right_time;
                 }
-                const progress = `${Math.round(Math.min(1, (t / this.Song.duration)) * 100 * 10) / 10}%`;
+                const progress = `${Math.round(Math.min(1, (t / this.Song.duration)) * 100 * 5) / 5}%`;
                 if (this.progressBarDom.style.getPropertyValue('--progress')!= progress) {
                     this.progressBarDom.style.setProperty('--progress', progress);
                 }
@@ -349,13 +350,61 @@ class Player {
         const left_time = this.progressBarTimeLeftDom.textContent;
         const right_time = this.progressBarTimeRightDom.textContent;
         const progress = this.progressBarDom.style.getPropertyValue('--progress');
-        const lyrics = this.Lyrics.raw;
+        const lyrics = this.Lyrics ? this.Lyrics.raw : undefined;
         const currentLine = this.currentLine;
         const activeLine = this.activeLine;
         const currentWord = this.currentWord ? this.currentWord.closest('.lyric-scroll-wrapper').scrollLeft : undefined;
 
         const state = [title, artist, album, cover, left_time, right_time, progress, lyrics, currentLine, activeLine, currentWord].join('|');
         return state;
+    }
+    getChangedBounding(state, prev_state) {
+        const state_arr = state.split('|');
+        const prev_state_arr = prev_state.split('|');
+        const bounding = {
+            left: 0,
+            top: 0,
+            right: window.innerWidth,
+            bottom: window.innerHeight
+        }
+        let updated = false;
+        function updateBounding(element) {
+            if (!element) return;
+            const rect = element.getBoundingClientRect();
+            if (!updated) {
+                updated = true;
+                bounding.left = rect.left;
+                bounding.top = rect.top;
+                bounding.right = rect.right;
+                bounding.bottom = rect.bottom;
+                return;
+            }
+            if (rect.left < bounding.left) bounding.left = rect.left;
+            if (rect.top < bounding.top) bounding.top = rect.top;
+            if (rect.right > bounding.right) bounding.right = rect.right;
+            if (rect.bottom > bounding.bottom) bounding.bottom = rect.bottom;
+            return;
+        }
+
+        if (state_arr[0] !== prev_state_arr[0]) updateBounding(this.titleDom);
+        if (state_arr[1] !== prev_state_arr[1]) updateBounding(this.artistDom);
+        if (state_arr[2] !== prev_state_arr[2]) updateBounding(this.albumDom);
+        if (state_arr[3] !== prev_state_arr[3]) updateBounding(this.coverDom);
+        if (state_arr[4] !== prev_state_arr[4]) updateBounding(this.progressBarTimeLeftDom);
+        if (state_arr[5] !== prev_state_arr[5]) updateBounding(this.progressBarTimeRightDom);
+        if (state_arr[6] !== prev_state_arr[6]) {
+            updateBounding(this.progressBarDom);
+            updateBounding(this.progressBarPointerDom);
+        }
+        if (state_arr[7] !== prev_state_arr[7] || state_arr[8] !== prev_state_arr[8] || state_arr[9] !== prev_state_arr[9] || state_arr[10] !== prev_state_arr[10]) {
+            updateBounding(this.lyricsContainerDom);
+        }
+
+        bounding.left = Math.floor(Math.max(0, bounding.left - 5));
+        bounding.top = Math.floor(Math.max(0, bounding.top - 5));
+        bounding.right = Math.ceil(Math.min(window.innerWidth, bounding.right + 5));
+        bounding.bottom = Math.ceil(Math.min(window.innerHeight, bounding.bottom + 5));
+        return bounding;
     }
 }
 
@@ -450,9 +499,10 @@ class PlaywrightController {
         if (currentState === this.previousState) {
             return false;
         }
+        const bounding = this.player.getChangedBounding(currentState, this.previousState);
         this.previousState = currentState;
         // console.log('Changed.');
-        return true;
+        return bounding;
     }
 
 }

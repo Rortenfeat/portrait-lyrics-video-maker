@@ -102,6 +102,9 @@ class Config:
             if key in self.BASIC_SONG_KEYS:
                 song[key] = value
 
+        if 'title' not in song or not song['title']:
+            song['title'] = os.path.basename(song_path).split('.')[0]
+
         song['audio'] = os.path.abspath(song_path)
 
         lrc_file = get_lrc_file_path(song['audio'])
@@ -197,7 +200,7 @@ class Config:
             for key in self.BASIC_GENERAL_KEYS:
                 res += f'{key.capitalize()}: {get(key)}' + '\n'
             res += 'Playlist:' + '\n'
-            if ( self.config['playlist'] ):
+            if ( 'playlist' in self.config and self.config['playlist'] ):
                 for i, song in enumerate(self.config['playlist']):
                     def get_(key) -> str:
                         res = song.get(key)

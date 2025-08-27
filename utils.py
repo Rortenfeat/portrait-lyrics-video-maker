@@ -39,11 +39,11 @@ def get_audio_metadata(filepath):
             return None
 
         metadata = {
-            'title': 'N/A',
-            'artist': 'N/A',
-            'album': 'N/A',
+            'title': None,
+            'artist': None,
+            'album': None,
             'duration': 0,
-            'lyrics': 'N/A',
+            'lyrics': None,
             'cover-base64-url': None
         }
 
@@ -55,19 +55,19 @@ def get_audio_metadata(filepath):
         # 不同格式的标签键名不同，我们尝试兼容
         # MP3 (ID3)
         if isinstance(audio.tags, ID3):
-            metadata['title'] = audio.tags.get('TIT2', ['N/A'])[0] # type: ignore
-            metadata['artist'] = audio.tags.get('TPE1', ['N/A'])[0] # type: ignore
-            metadata['album'] = audio.tags.get('TALB', ['N/A'])[0] # type: ignore
+            metadata['title'] = audio.tags.get('TIT2', [None])[0] # type: ignore
+            metadata['artist'] = audio.tags.get('TPE1', [None])[0] # type: ignore
+            metadata['album'] = audio.tags.get('TALB', [None])[0] # type: ignore
             # 歌词通常在 USLT 帧中
             uslt_frame = audio.tags.getall('USLT')
             if uslt_frame:
                 metadata['lyrics'] = uslt_frame[0].text
         # FLAC, OGG (Vorbis Comments)
         else:
-            metadata['title'] = audio.tags.get('title', ['N/A'])[0]
-            metadata['artist'] = audio.tags.get('artist', ['N/A'])[0]
-            metadata['album'] = audio.tags.get('album', ['N/A'])[0]
-            metadata['lyrics'] = audio.tags.get('lyrics', ['N/A'])[0]
+            metadata['title'] = audio.tags.get('title', [None])[0]
+            metadata['artist'] = audio.tags.get('artist', [None])[0]
+            metadata['album'] = audio.tags.get('album', [None])[0]
+            metadata['lyrics'] = audio.tags.get('lyrics', [None])[0]
             
             
         # 3. 获取封面并转换为 Base64 Data URL

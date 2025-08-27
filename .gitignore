@@ -5,6 +5,7 @@ input
 test
 *.mp4
 output*
+ffmpeg.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
